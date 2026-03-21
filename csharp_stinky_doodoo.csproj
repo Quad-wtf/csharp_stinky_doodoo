@@ -12,10 +12,4 @@
     <PackageReference Include="Discord.Net.WebSocket" Version="3.19.1" />
   </ItemGroup>
 
-  <ItemGroup>
-  <Content Include="config.json">
-    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-  </Content>
-  </ItemGroup>
-
 </Project>
