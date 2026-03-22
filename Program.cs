@@ -32,10 +32,14 @@ class Program
 
     async Task RunAsync()
     {
-        var json = File.ReadAllText("config.json");
-        var configFile = JsonDocument.Parse(json);
-        var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN")
-        ?? configFile.RootElement.GetProperty("token").GetString();
+        var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
+
+        if (token == null)
+        {
+            var json = File.ReadAllText("config.json");
+            var configFile = JsonDocument.Parse(json);
+            token = configFile.RootElement.GetProperty("token").GetString();
+        }
 
         var config = new DiscordSocketConfig
         {
