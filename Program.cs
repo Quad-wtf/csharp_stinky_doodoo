@@ -74,8 +74,17 @@ class Program
         if (msg.Channel is not SocketGuildChannel guildChannel) return;
         if (msg.Author is not SocketGuildUser caller) return;
 
+        // Auto-log any recognised command
+        var matched = _commands.FirstOrDefault(cmd => msg.Content == cmd || msg.Content.StartsWith(cmd + " "));
+        if (matched != null)
+        {
+            var timestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
+            Console.WriteLine($"[{timestamp}] Received command \"{msg.Content}\" from @{msg.Author.Username} in #{msg.Channel.Name}");
+        }            
+
         if (msg.Content == "!ping")
         {
+                
             var sw = Stopwatch.StartNew();
             var sent = await msg.Channel.SendMessageAsync("Pinging...");
             sw.Stop();
@@ -120,6 +129,7 @@ class Program
 
         if (msg.Content.StartsWith("!ban "))
         {
+
             if (!caller.GuildPermissions.BanMembers)
             {
                 await msg.Channel.SendMessageAsync("You don't have permission to ban members.");
