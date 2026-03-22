@@ -212,7 +212,7 @@ class Program
                 return;
             }
 
-            await msg.Channel.SendMessageAsync($"🎱 {responses[Random.Shared.Next(responses.Length)]}");
+            await msg.Channel.SendMessageAsync($"{responses[Random.Shared.Next(responses.Length)]}");
         }
 
         if (msg.Content.StartsWith("!urban "))
@@ -252,7 +252,7 @@ class Program
             if (example.Length    > 1024) example    = example[..1021]    + "...";
 
             var embed = new EmbedBuilder()
-                .WithTitle($"📖 {term}")
+                .WithTitle($"{term}")
                 .WithUrl(permalink)
                 .WithColor(new Color(0xEFFF00))
                 .AddField("Definition", definition)
