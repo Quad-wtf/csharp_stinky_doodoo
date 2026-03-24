@@ -3,6 +3,8 @@ using Discord.WebSocket;
 using Discord.Rest;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 
 static class Emojis
 {
@@ -26,7 +28,7 @@ class Program
 
     private static readonly DateTime _startTime = DateTime.UtcNow;
 
-    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar"];
+    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar"];
 
     static async Task Main() => await new Program().RunAsync();
 
@@ -346,6 +348,18 @@ class Program
                 .WithImageUrl(avatarUrl)
                 .WithUrl(avatarUrl)
                 .WithColor(Color.DarkerGrey)
+                .WithCurrentTimestamp()
+                .Build();
+
+            await msg.Channel.SendMessageAsync(embed: embed);
+        }
+        if (msg.Content == "!help")
+        {
+            var embed = new EmbedBuilder()
+                .WithTitle($"{Emojis.devious} Commands")
+                .WithColor(Color.Blue)
+                .WithDescription(string.Join("\n", _commands.Select(c => $"`{c}`")))
+                .WithFooter($"{_commands.Length} commands total")
                 .WithCurrentTimestamp()
                 .Build();
 
