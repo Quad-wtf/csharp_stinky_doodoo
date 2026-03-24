@@ -2,4 +2,4 @@ config.json
 bin/
 obj/
 commands.txt
-commit.sh
+commit.ps1
