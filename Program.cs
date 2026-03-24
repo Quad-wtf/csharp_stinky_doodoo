@@ -356,7 +356,7 @@ class Program
         if (msg.Content == "!help")
         {
             var embed = new EmbedBuilder()
-                .WithTitle($"{Emojis.devious} Commands")
+                .WithTitle($"{Emojis.bomboclat} Commands")
                 .WithColor(Color.Blue)
                 .WithDescription(string.Join("\n", _commands.Select(c => $"`{c}`")))
                 .WithFooter($"{_commands.Length} commands total")
