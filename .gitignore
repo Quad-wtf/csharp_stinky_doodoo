@@ -1,5 +1,7 @@
+# Compilation products, other secret stuffs ;)
+
 config.json
+commit.ps1
+
 bin/
 obj/
-commands.txt
-commit.ps1
