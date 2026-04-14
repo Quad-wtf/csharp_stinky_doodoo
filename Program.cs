@@ -22,13 +22,19 @@ static class Emojis
     public const string devious       = "<:devious:1463527169643909141>";
 }
 
+// Holds AFK state for a user
+record AfkEntry(string Reason, DateTimeOffset Since);
+
 class Program
 {
     private DiscordSocketClient? _client;
 
     private static readonly DateTime _startTime = DateTime.UtcNow;
 
-    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar"];
+    // userId → AFK entry
+    private readonly Dictionary<ulong, AfkEntry> _afkUsers = new();
+
+    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk"];
 
     static async Task Main() => await new Program().RunAsync();
 
@@ -70,6 +76,14 @@ class Program
         catch { return null; }
     }
 
+    // Formats a TimeSpan into a compact "Xh Ym Zs" string
+    static string FormatDuration(TimeSpan t)
+    {
+        if (t.TotalMinutes < 1)  return $"{t.Seconds}s";
+        if (t.TotalHours   < 1)  return $"{t.Minutes}m {t.Seconds}s";
+        return $"{(int)t.TotalHours}h {t.Minutes}m";
+    }
+
     async Task OnMessageReceived(SocketMessage msg)
     {
         if (msg.Author.IsBot) return;
@@ -82,11 +96,34 @@ class Program
         {
             var timestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
             Console.WriteLine($"[{timestamp}] Received command \"{msg.Content}\" from @{msg.Author.Username} in #{msg.Channel.Name}");
-        }            
+        }
+
+        // ── AFK: auto-remove when the AFK user sends any message ─────────────
+        if (_afkUsers.TryGetValue(caller.Id, out var callerAfk))
+        {
+            // Skip removal if this is their own !afk command (so the command below can respond first)
+            if (!msg.Content.StartsWith("!afk"))
+            {
+                _afkUsers.Remove(caller.Id);
+                var gone = FormatDuration(DateTimeOffset.UtcNow - callerAfk.Since);
+                await msg.Channel.SendMessageAsync($"Welcome back, {caller.Mention}! You were AFK for **{gone}**.");
+            }
+        }
+
+        // ── AFK: notify when someone pings an AFK user ────────────────────────
+        foreach (var mentioned in msg.MentionedUsers)
+        {
+            if (mentioned.Id == caller.Id) continue; // ignore self-mentions
+            if (!_afkUsers.TryGetValue(mentioned.Id, out var entry)) continue;
+
+            var ago = FormatDuration(DateTimeOffset.UtcNow - entry.Since);
+            var reasonPart = entry.Reason.Length > 0 ? $" — *{entry.Reason}*" : "";
+            await msg.Channel.SendMessageAsync(
+                $"**{mentioned.Username}** is currently AFK{reasonPart} *(since {ago} ago)*");
+        }
 
         if (msg.Content == "!ping")
         {
-                
             var sw = Stopwatch.StartNew();
             var sent = await msg.Channel.SendMessageAsync("Pinging...");
             sw.Stop();
@@ -113,13 +150,13 @@ class Program
                     _     => Color.Red
                 })
                 .WithCurrentTimestamp()
-                .AddField("Gateway Latency", $"`{gatewayLatency}ms`",              inline: true)
-                .AddField("Message Latency", $"`{messageLatency}ms`",              inline: true)
-                .AddField("RAM Usage",       $"`{ramUsedMB} MB / {totalRamMB} MB`",inline: true)
-                .AddField("Uptime",          $"`{uptimeStr}`",                     inline: true)
-                .AddField("Commands",        $"`{_commands.Length}`",              inline: true)
-                .AddField("Discord.Net",     $"`v{discordNetVersion}`",            inline: true)
-                .AddField(".NET Runtime",    $"`v{dotnetVersion}`",                inline: true)
+                .AddField("Gateway Latency", $"`{gatewayLatency}ms`",               inline: true)
+                .AddField("Message Latency", $"`{messageLatency}ms`",               inline: true)
+                .AddField("RAM Usage",       $"`{ramUsedMB} MB / {totalRamMB} MB`", inline: true)
+                .AddField("Uptime",          $"`{uptimeStr}`",                      inline: true)
+                .AddField("Commands",        $"`{_commands.Length}`",               inline: true)
+                .AddField("Discord.Net",     $"`v{discordNetVersion}`",             inline: true)
+                .AddField(".NET Runtime",    $"`v{dotnetVersion}`",                 inline: true)
                 .Build();
 
             await sent.ModifyAsync(m =>
@@ -129,9 +166,18 @@ class Program
             });
         }
 
+        if (msg.Content.StartsWith("!afk"))
+        {
+            var reason = msg.Content.Length > 5 ? msg.Content[5..].Trim() : "";
+
+            _afkUsers[caller.Id] = new AfkEntry(reason, DateTimeOffset.UtcNow);
+
+            var reasonPart = reason.Length > 0 ? $": *{reason}*" : ".";
+            await msg.Channel.SendMessageAsync($"{caller.Mention} is now AFK{reasonPart}");
+        }
+
         if (msg.Content.StartsWith("!ban "))
         {
-
             if (!caller.GuildPermissions.BanMembers)
             {
                 await msg.Channel.SendMessageAsync("You don't have permission to ban members.");
@@ -314,7 +360,6 @@ class Program
             var rolesStr = roles.Any() ? string.Join(", ", roles) : "*None*";
             if (rolesStr.Length > 1024) rolesStr = rolesStr[..1021] + "...";
 
-            // Get the user's top colored role if available
             var topColor = target is SocketGuildUser su
                 ? su.Roles.OrderByDescending(r => r.Position).FirstOrDefault(r => r.Colors.PrimaryColor.RawValue != 0)?.Colors.PrimaryColor ?? Color.Default
                 : Color.Default;
@@ -353,6 +398,7 @@ class Program
 
             await msg.Channel.SendMessageAsync(embed: embed);
         }
+
         if (msg.Content == "!help")
         {
             var embed = new EmbedBuilder()
