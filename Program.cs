@@ -22,6 +22,27 @@ static class Emojis
     public const string devious       = "<:devious:1463527169643909141>";
 }
 
+record DailyData(int Points, int Streak, DateTime LastClaim);
+
+static class DailyStore
+{
+    private static readonly string FilePath = "daily.json";
+    public static Dictionary<ulong, DailyData> Data = new();
+
+    public static void Load()
+    {
+        if (!File.Exists(FilePath)) return;
+        var json = File.ReadAllText(FilePath);
+        Data = JsonSerializer.Deserialize<Dictionary<ulong, DailyData>>(json) ?? new();
+    }
+
+    public static void Save()
+    {
+        var json = JsonSerializer.Serialize(Data, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(FilePath, json);
+    }
+}
+
 // Holds AFK state for a user
 record AfkEntry(string Reason, DateTimeOffset Since);
 
@@ -34,12 +55,14 @@ class Program
     // userId → AFK entry
     private readonly Dictionary<ulong, AfkEntry> _afkUsers = new();
 
-    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk"];
+    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk", "!daily", "!leaderboard"];
 
     static async Task Main() => await new Program().RunAsync();
 
     async Task RunAsync()
     {
+        DailyStore.Load();
+
         var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
 
         if (token == null)
@@ -327,7 +350,7 @@ class Program
             var guild = guildChannel.Guild;
 
             var embed = new EmbedBuilder()
-                .WithTitle($"🏠 {guild.Name}")
+                .WithTitle($"{guild.Name}")
                 .WithThumbnailUrl(guild.IconUrl)
                 .WithColor(Color.Blue)
                 .AddField("Owner",       $"<@{guild.OwnerId}>",                         inline: true)
@@ -411,6 +434,95 @@ class Program
 
             await msg.Channel.SendMessageAsync(embed: embed);
         }
+
+        if (msg.Content == "!daily")
+            {
+                var now = DateTime.UtcNow;
+
+                if (!DailyStore.Data.TryGetValue(caller.Id, out var data))
+                {
+                    data = new DailyData(0, 0, DateTime.MinValue);
+                }
+
+                int reward = 20;
+
+                if (data.LastClaim != DateTime.MinValue)
+                {
+                    var diff = (now - data.LastClaim).TotalDays;
+
+                     if (diff < 1)
+                    {
+                        await msg.Channel.SendMessageAsync("You already claimed your daily reward today.");
+                        return;
+                    }
+
+                    if (diff < 2)
+                    {
+                        data = data with { Streak = data.Streak + 1 };
+                        reward += data.Streak * 5;
+                    }
+                    else
+                    {
+                        data = data with { Streak = 0 };
+                    }
+                }
+
+                data = data with
+                {
+                    Points = data.Points + reward,
+                    LastClaim = now
+                };
+
+                DailyStore.Data[caller.Id] = data;
+                DailyStore.Save();
+
+                var embed = new EmbedBuilder()
+                    .WithTitle("Daily Reward")
+                    .WithColor(Color.Gold)
+                    .AddField("Reward", $"+{reward} Mypoints(r)", true)
+                    .AddField("Total Points", $"{data.Points}", true)
+                    .AddField("Streak", $"{data.Streak} days", true)
+                    .WithCurrentTimestamp()
+                    .Build();
+
+                    await msg.Channel.SendMessageAsync(embed: embed);
+                }
+
+                if (msg.Content == "!leaderboard")
+                {
+                    var top = DailyStore.Data
+                        .OrderByDescending(x => x.Value.Points)
+                        .Take(10)
+                        .ToList();
+
+                    if (top.Count == 0)
+                    {
+                        await msg.Channel.SendMessageAsync("No data yet.");
+                        return;
+                    }
+
+                    var desc = "";
+
+                    for (int i = 0; i < top.Count; i++)
+                    {
+                        var userId = top[i].Key;
+                        var points = top[i].Value.Points;
+
+                        var user = await ResolveGuildUserAsync(guildChannel.Guild, userId);
+                        var name = user?.Username ?? $"User {userId}";
+
+                        desc += $"**#{i + 1}** {name} — `{points} pts`\n";
+                    }
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("🏆 Leaderboard")
+                        .WithColor(Color.Blue)
+                        .WithDescription(desc)
+                        .WithCurrentTimestamp()
+                        .Build();
+
+                    await msg.Channel.SendMessageAsync(embed: embed);
+                }
     }
 
     static long GetTotalRamMB()
