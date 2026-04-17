@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Diagnostics.Contracts;
 
 static class Emojis
 {
@@ -20,6 +21,19 @@ static class Emojis
     public const string bonk          = "<:bonk:1463527007131537531>";
     public const string cornball      = "<:cornball:1471062777081892906>";
     public const string devious       = "<:devious:1463527169643909141>";
+    public const string eh            = "<:eh:1471061029034397788>";
+    public const string empty         = "<:empty:1471060785907236874>";
+    public const string ew            = "<:ew:1463526878634573896>";
+    public const string femboy        = "<:femboy:1463526371740614728>";
+    public const string getmuted      = "<:getmuted:1471062600409288831>";
+    public const string interesting   = "<:interesting:1463527484405448747>";
+    public const string jawonthefloor = "<:jawonthefloor:1471062859952947336>";
+    public const string moneyface     = "<:moneyface:1463527541225685233>";
+    public const string muted         = "<:muted:1471061503464706170>";
+    public const string nahnahnah     = "<:nahnahnah:1463526945693106408>";
+    public const string reverse       = "<:reverse:1471062740100579462>";
+    public const string saythatagain  = "<:saythatagain:1463527631667462214>";
+    public const string stoopid       = "<:stoopid:1463526846464397467>";
 }
 
 record DailyData(int Points, int Streak, DateTime LastClaim);
