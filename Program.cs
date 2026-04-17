@@ -66,7 +66,7 @@ class Program
 
     private static readonly DateTime _startTime = DateTime.UtcNow;
 
-    // userId → AFK entry
+    // userId -> AFK entry
     private readonly Dictionary<ulong, AfkEntry> _afkUsers = new();
 
     private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk", "!daily", "!leaderboard"];
@@ -135,7 +135,7 @@ class Program
             Console.WriteLine($"[{timestamp}] Received command \"{msg.Content}\" from @{msg.Author.Username} in #{msg.Channel.Name}");
         }
 
-        // ── AFK: auto-remove when the AFK user sends any message ─────────────
+        // AFK: auto-remove when the AFK user sends any message
         if (_afkUsers.TryGetValue(caller.Id, out var callerAfk))
         {
             // Skip removal if this is their own !afk command (so the command below can respond first)
@@ -147,7 +147,7 @@ class Program
             }
         }
 
-        // ── AFK: notify when someone pings an AFK user ────────────────────────
+        // AFK: notify when someone pings an AFK user 
         foreach (var mentioned in msg.MentionedUsers)
         {
             if (mentioned.Id == caller.Id) continue; // ignore self-mentions
@@ -529,7 +529,7 @@ class Program
                     }
 
                     var embed = new EmbedBuilder()
-                        .WithTitle("🏆 Leaderboard")
+                        .WithTitle($"{Emojis.interesting}Leaderboard")
                         .WithColor(Color.Blue)
                         .WithDescription(desc)
                         .WithCurrentTimestamp()
