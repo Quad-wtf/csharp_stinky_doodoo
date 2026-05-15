@@ -69,7 +69,12 @@ class Program
     // userId -> AFK entry
     private readonly Dictionary<ulong, AfkEntry> _afkUsers = new();
 
-    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk", "!daily", "!leaderboard", "!announcement"];
+    private static readonly string[] _commands = [
+    "!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip",
+    "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk",
+    "!daily", "!leaderboard", "!announcement", "!maintenance",
+    "!join", "!leave", "!bye", "!volume", "!play"
+    ];
 
     static async Task Main() => await new Program().RunAsync();
 
