@@ -618,9 +618,9 @@ class Program
             var args = msg.Content[13..].Trim();
 
             var fromMatch = System.Text.RegularExpressions.Regex.Match(args,
-                @"From:(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})");
+                @"From:(\d{2}/\d{2}/\d{4})[\s]+(\d{2}[:.]\d{2})");
             var toMatch = System.Text.RegularExpressions.Regex.Match(args,
-                @"To:(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})");
+                @"To:(\d{2}/\d{2}/\d{4})[\s]+(\d{2}[:.]\d{2})");
 
             if (!fromMatch.Success || !toMatch.Success)
             {
@@ -629,9 +629,12 @@ class Program
                 return;
             }
 
-            if (!DateTime.TryParseExact(fromMatch.Groups[1].Value, "dd/MM/yyyy HH:mm",
+            var fromStr = $"{fromMatch.Groups[1].Value} {fromMatch.Groups[2].Value.Replace('.', ':')}";
+            var toStr   = $"{toMatch.Groups[1].Value} {toMatch.Groups[2].Value.Replace('.', ':')}";
+
+            if (!DateTime.TryParseExact(fromStr, "dd/MM/yyyy HH:mm",
                     null, System.Globalization.DateTimeStyles.None, out var fromTime) ||
-                !DateTime.TryParseExact(toMatch.Groups[1].Value,   "dd/MM/yyyy HH:mm",
+                !DateTime.TryParseExact(toStr,   "dd/MM/yyyy HH:mm",
                     null, System.Globalization.DateTimeStyles.None, out var toTime))
             {
                 await msg.Channel.SendMessageAsync(
