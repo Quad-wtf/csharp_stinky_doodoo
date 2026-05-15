@@ -69,7 +69,7 @@ class Program
     // userId -> AFK entry
     private readonly Dictionary<ulong, AfkEntry> _afkUsers = new();
 
-    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk", "!daily", "!leaderboard"];
+    private static readonly string[] _commands = ["!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip", "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk", "!daily", "!leaderboard", "!announcement"];
 
     static async Task Main() => await new Program().RunAsync();
 
@@ -450,93 +450,156 @@ class Program
         }
 
         if (msg.Content == "!daily")
+        {
+            var now = DateTime.UtcNow;
+
+            if (!DailyStore.Data.TryGetValue(caller.Id, out var data))
             {
-                var now = DateTime.UtcNow;
+                data = new DailyData(0, 0, DateTime.MinValue);
+            }
 
-                if (!DailyStore.Data.TryGetValue(caller.Id, out var data))
+            int reward = 20;
+
+            if (data.LastClaim != DateTime.MinValue)
+            {
+                var diff = (now - data.LastClaim).TotalDays;
+
+                if (diff < 1)
                 {
-                    data = new DailyData(0, 0, DateTime.MinValue);
+                    await msg.Channel.SendMessageAsync("You already claimed your daily reward today.");
+                    return;
                 }
 
-                int reward = 20;
-
-                if (data.LastClaim != DateTime.MinValue)
+                if (diff < 2)
                 {
-                    var diff = (now - data.LastClaim).TotalDays;
-
-                     if (diff < 1)
-                    {
-                        await msg.Channel.SendMessageAsync("You already claimed your daily reward today.");
-                        return;
-                    }
-
-                    if (diff < 2)
-                    {
-                        data = data with { Streak = data.Streak + 1 };
-                        reward += data.Streak * 5;
-                    }
-                    else
-                    {
-                        data = data with { Streak = 0 };
-                    }
+                    data = data with { Streak = data.Streak + 1 };
+                    reward += data.Streak * 5;
                 }
-
-                data = data with
+                else
                 {
-                    Points = data.Points + reward,
-                    LastClaim = now
-                };
-
-                DailyStore.Data[caller.Id] = data;
-                DailyStore.Save();
-
-                var embed = new EmbedBuilder()
-                    .WithTitle("Daily Reward")
-                    .WithColor(Color.Gold)
-                    .AddField("Reward", $"+{reward} Mypoints(r)", true)
-                    .AddField("Total Points", $"{data.Points}", true)
-                    .AddField("Streak", $"{data.Streak} days", true)
-                    .WithCurrentTimestamp()
-                    .Build();
-
-                    await msg.Channel.SendMessageAsync(embed: embed);
+                    data = data with { Streak = 0 };
                 }
+            }
 
-                if (msg.Content == "!leaderboard")
+            data = data with
+            {
+                Points = data.Points + reward,
+                LastClaim = now
+            };
+
+            DailyStore.Data[caller.Id] = data;
+            DailyStore.Save();
+
+            var embed = new EmbedBuilder()
+                .WithTitle("Daily Reward")
+                .WithColor(Color.Gold)
+                .AddField("Reward", $"+{reward} Mypoints(r)", true)
+                .AddField("Total Points", $"{data.Points}", true)
+                .AddField("Streak", $"{data.Streak} days", true)
+                .WithCurrentTimestamp()
+                .Build();
+
+                await msg.Channel.SendMessageAsync(embed: embed);
+        }
+
+        if (msg.Content == "!leaderboard")
+        {
+            var top = DailyStore.Data
+                .OrderByDescending(x => x.Value.Points)
+                .Take(10)
+                .ToList();
+
+            if (top.Count == 0)
+            {
+                await msg.Channel.SendMessageAsync("No data yet.");
+                return;
+            }
+
+            var desc = "";
+
+            for (int i = 0; i < top.Count; i++)
+            {
+                var userId = top[i].Key;
+                var points = top[i].Value.Points;
+
+                var user = await ResolveGuildUserAsync(guildChannel.Guild, userId);
+                var name = user?.Username ?? $"User {userId}";
+
+                desc += $"**#{i + 1}** {name} — `{points} pts`\n";
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle($"{Emojis.interesting}Leaderboard")
+                .WithColor(Color.Blue)
+                .WithDescription(desc)
+                .WithCurrentTimestamp()
+                .Build();
+
+            await msg.Channel.SendMessageAsync(embed: embed);
+        }
+
+        if (msg.Content.StartsWith("!announcement "))
+        {
+            if (!caller.GuildPermissions.ManageGuild)
+            {
+                await msg.Channel.SendMessageAsync("You don't have permission to send announcements.");
+                return;
+            }
+
+            // Expect: !announcement #channel-mention-or-id <message>
+            var args = msg.Content[14..].Trim();
+
+            ulong targetChannelId = 0;
+            string announcementText = "";
+
+            // Try parsing a channel mention: <#1234567890>
+            var mentionedChannel = msg.MentionedChannels.FirstOrDefault();
+            if (mentionedChannel != null)
+            {
+                targetChannelId = mentionedChannel.Id;
+                // Strip the mention from the front to get the message
+                var mentionStr = $"<#{mentionedChannel.Id}>";
+                var afterMention = args[(args.IndexOf(mentionStr) + mentionStr.Length)..].Trim();
+                announcementText = afterMention;
+            }
+            else
+            {
+                // Try a raw channel ID as the first token
+                var spaceIdx = args.IndexOf(' ');
+                if (spaceIdx > 0 && ulong.TryParse(args[..spaceIdx], out targetChannelId))
                 {
-                    var top = DailyStore.Data
-                        .OrderByDescending(x => x.Value.Points)
-                        .Take(10)
-                        .ToList();
-
-                    if (top.Count == 0)
-                    {
-                        await msg.Channel.SendMessageAsync("No data yet.");
-                        return;
-                    }
-
-                    var desc = "";
-
-                    for (int i = 0; i < top.Count; i++)
-                    {
-                        var userId = top[i].Key;
-                        var points = top[i].Value.Points;
-
-                        var user = await ResolveGuildUserAsync(guildChannel.Guild, userId);
-                        var name = user?.Username ?? $"User {userId}";
-
-                        desc += $"**#{i + 1}** {name} — `{points} pts`\n";
-                    }
-
-                    var embed = new EmbedBuilder()
-                        .WithTitle($"{Emojis.interesting}Leaderboard")
-                        .WithColor(Color.Blue)
-                        .WithDescription(desc)
-                        .WithCurrentTimestamp()
-                        .Build();
-
-                    await msg.Channel.SendMessageAsync(embed: embed);
+                    announcementText = args[(spaceIdx + 1)..].Trim();
                 }
+            }
+
+            if (targetChannelId == 0 || string.IsNullOrWhiteSpace(announcementText))
+            {
+                await msg.Channel.SendMessageAsync(
+                    "Usage: `!announcement #channel <message>` or `!announcement <channel-id> <message>`");
+                return;
+            }
+
+            var targetChannel = guildChannel.Guild.GetTextChannel(targetChannelId);
+            if (targetChannel == null)
+            {
+                await msg.Channel.SendMessageAsync("Couldn't find that channel in this server.");
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle($"{Emojis.jawonthefloor} Announcement")
+                .WithDescription(announcementText)
+                .WithColor(Color.Orange)
+                .WithFooter($"Sent by {caller.DisplayName}", caller.GetAvatarUrl() ?? caller.GetDefaultAvatarUrl())
+                .WithCurrentTimestamp()
+                .Build();
+
+            await targetChannel.SendMessageAsync(embed: embed);
+
+            // Confirm back in the command channel (if different)
+            if (targetChannel.Id != msg.Channel.Id)
+                await msg.Channel.SendMessageAsync($"Announcement sent to {targetChannel.Mention}!");
+        }
     }
 
     static long GetTotalRamMB()
