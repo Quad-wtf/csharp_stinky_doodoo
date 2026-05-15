@@ -1,7 +1,16 @@
 # Compilation products, other secret stuffs ;)
 
 config.json
+application.yml
+daily.json
 commit.ps1
+
+*.lscache
+Lavalink.jar
 
 bin/
 obj/
+
+.vs/
+.vscode/
+*.user
