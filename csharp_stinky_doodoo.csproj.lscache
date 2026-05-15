@@ -13,19 +13,8 @@ primary
 lastDtbSucceeded
 
 [properties]
-AssemblyName=csharp_stinky_doodoo
-CommandLineArgsForDesignTimeEvaluation=-langversion:13.0 -define:TRACE
-CompilerGeneratedFilesOutputPath=
-MaxSupportedLangVersion=13.0
-ProjectAssetsFile=<PATH>obj/project.assets.json
-RootNamespace=csharp_stinky_doodoo
-RunAnalyzers=
-RunAnalyzersDuringLiveAnalysis=
-SolutionPath=<PATH>csharp_stinky_doodoo.sln
-TargetFrameworkIdentifier=.NETCoreApp
-TargetPath=<PATH>bin/Debug/net9.0/linux-x64/csharp_stinky_doodoo.dll
-TargetRefPath=<PATH>obj/Debug/net9.0/linux-x64/ref/csharp_stinky_doodoo.dll
-TemporaryDependencyNodeTargetIdentifier=net9.0
+TargetPath=<PATH>bin/Debug/net9.0/win-x64/csharp_stinky_doodoo.dll
+TargetRefPath=<PATH>obj/Debug/net9.0/win-x64/ref/csharp_stinky_doodoo.dll
 
 [commandLineArguments]
 /noconfig
@@ -44,8 +33,8 @@ TemporaryDependencyNodeTargetIdentifier=net9.0
 /debug:portable
 /filealign:512
 /optimize-
-/out:obj\Debug\net9.0\linux-x64\csharp_stinky_doodoo.dll
-/refout:obj\Debug\net9.0\linux-x64\refint\csharp_stinky_doodoo.dll
+/out:obj\Debug\net9.0\win-x64\csharp_stinky_doodoo.dll
+/refout:obj\Debug\net9.0\win-x64\refint\csharp_stinky_doodoo.dll
 /target:exe
 /warnaserror-
 /utf8output
@@ -54,7 +43,7 @@ TemporaryDependencyNodeTargetIdentifier=net9.0
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
-obj/Debug/net9.0/linux-x64/
+obj/Debug/net9.0/win-x64/
  .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
  csharp_stinky_doodoo.AssemblyInfo.cs
  csharp_stinky_doodoo.GlobalUsings.g.cs
@@ -259,4 +248,4 @@ Program.cs
 
 [analyzerConfigFiles]
 <DOTNET>/sdk/9.0.314/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_9_default.globalconfig
-obj/Debug/net9.0/linux-x64/csharp_stinky_doodoo.GeneratedMSBuildEditorConfig.editorconfig
+obj/Debug/net9.0/win-x64/csharp_stinky_doodoo.GeneratedMSBuildEditorConfig.editorconfig
