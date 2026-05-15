@@ -605,6 +605,74 @@ class Program
             if (targetChannel.Id != msg.Channel.Id)
                 await msg.Channel.SendMessageAsync($"Announcement sent to {targetChannel.Mention}!");
         }
+
+        if (msg.Content.StartsWith("!maintenance "))
+        {
+            if (!caller.GuildPermissions.ManageGuild)
+            {
+                await msg.Channel.SendMessageAsync("You don't have permission to schedule maintenance.");
+                return;
+            }
+
+            // Parse: !maintenance From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm
+            var args = msg.Content[13..].Trim();
+
+            var fromMatch = System.Text.RegularExpressions.Regex.Match(args,
+                @"From:(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})");
+            var toMatch = System.Text.RegularExpressions.Regex.Match(args,
+                @"To:(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})");
+
+            if (!fromMatch.Success || !toMatch.Success)
+            {
+                await msg.Channel.SendMessageAsync(
+                    "Usage: `!maintenance From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm`");
+                return;
+            }
+
+            if (!DateTime.TryParseExact(fromMatch.Groups[1].Value, "dd/MM/yyyy HH:mm",
+                    null, System.Globalization.DateTimeStyles.None, out var fromTime) ||
+                !DateTime.TryParseExact(toMatch.Groups[1].Value,   "dd/MM/yyyy HH:mm",
+                    null, System.Globalization.DateTimeStyles.None, out var toTime))
+            {
+                await msg.Channel.SendMessageAsync(
+                    "Invalid date format. Use: `From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm`");
+                return;
+            }
+
+            if (toTime <= fromTime)
+            {
+                await msg.Channel.SendMessageAsync("The end time must be after the start time.");
+                return;
+            }
+
+            var duration = toTime - fromTime;
+            string durationStr = duration.TotalHours >= 1
+                ? $"{(int)duration.TotalHours}h {duration.Minutes}m"
+                : $"{duration.Minutes}m";
+
+            // Convert to Unix timestamps for Discord's <t:> formatting
+            var fromUnix = ((DateTimeOffset)DateTime.SpecifyKind(fromTime, DateTimeKind.Utc)).ToUnixTimeSeconds();
+            var toUnix   = ((DateTimeOffset)DateTime.SpecifyKind(toTime,   DateTimeKind.Utc)).ToUnixTimeSeconds();
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🔧 Scheduled Maintenance")
+                .WithColor(new Color(0xFF6600))
+                .WithDescription(
+                    $"@everyone\n\n" +
+                    $"The bot will be undergoing scheduled maintenance.\n" +
+                    $"During this window, all commands will be unavailable.")
+                .AddField("Start",    $"<t:{fromUnix}:F>", inline: true)
+                .AddField("End",      $"<t:{toUnix}:F>",   inline: true)
+                .AddField("Duration", $"`{durationStr}`",   inline: true)
+                .WithFooter($"Scheduled by {caller.DisplayName}", caller.GetAvatarUrl() ?? caller.GetDefaultAvatarUrl())
+                .WithCurrentTimestamp()
+                .Build();
+
+            await msg.Channel.SendMessageAsync("@everyone", embed: embed);
+
+            if (msg.Channel.Id != msg.Channel.Id) // placeholder; extend if cross-channel support is needed
+                await msg.Channel.SendMessageAsync("Maintenance notice sent!");
+        }
     }
 
     static long GetTotalRamMB()
