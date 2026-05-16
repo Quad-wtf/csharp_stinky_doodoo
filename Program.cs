@@ -108,6 +108,7 @@ class Program
             var json = File.ReadAllText("config.json");
             var configFile = JsonDocument.Parse(json);
             token = configFile.RootElement.GetProperty("token").GetString();
+            lavalinkPassword = configFile.RootElement.GetProperty("lavalink_password").GetString() ?? "";
         }
 
         var config = new DiscordSocketConfig
@@ -117,23 +118,7 @@ class Program
 
         _client = new DiscordSocketClient(config);
 
-        _client.Log += msg => { Console.WriteLine(msg); return Task.CompletedTask; };
-        _client.MessageReceived += OnMessageReceived;
-        _client.Ready += async () =>
-        {
-            Console.WriteLine("\nBot is ready!\n");
-            if (_lavaNode != null && !_lavaNode.IsConnected)
-            {
-                await _lavaNode.ConnectAsync();
-                Console.WriteLine("Lavalink connected!");
-            }
-        };
-
-        await _client.LoginAsync(TokenType.Bot, token);
-        await _client.StartAsync();
-
-        await Task.Delay(Timeout.Infinite);
-
+        // Set up Lavalink BEFORE starting the client
         var lavaConfig = new LavaConfig
         {
             Hostname      = "127.0.0.1",
@@ -143,13 +128,15 @@ class Program
 
         _lavaNode = new LavaNode(_client, lavaConfig);
 
+        _client.Log += msg => { Console.WriteLine(msg); return Task.CompletedTask; };
+        _client.MessageReceived += OnMessageReceived;
         _client.Ready += async () =>
         {
             Console.WriteLine("\nBot is ready!\n");
-            await Task.Delay(2000); // give Victoria a moment
+            await Task.Delay(2000);
             try
             {
-                if (!_lavaNode!.IsConnected)
+                if (!_lavaNode.IsConnected)
                 {
                     await _lavaNode.ConnectAsync();
                     Console.WriteLine("Lavalink connected!");
@@ -164,6 +151,11 @@ class Program
                 Console.WriteLine($"Lavalink connection failed: {ex.Message}");
             }
         };
+
+        await _client.LoginAsync(TokenType.Bot, token);
+        await _client.StartAsync();
+
+        await Task.Delay(Timeout.Infinite); // this goes LAST, keeping the process alive
     }
 
     // Resolves a guild member by ID — checks cache first, falls back to REST API
