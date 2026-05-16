@@ -3,6 +3,8 @@ using Discord.WebSocket;
 using System.Diagnostics;
 using System.Text.Json;
 using Victoria;
+using Victoria.Enums;
+using Victoria.Responses.Search;
 
 static class Emojis
 {
@@ -78,11 +80,28 @@ class Program
 
     static async Task Main() => await new Program().RunAsync();
 
+    static string BuildVolumeBar(int volume)
+    {
+        const int bars = 10;
+        int filled = (int)Math.Round(volume / 100.0 * bars);
+        return string.Concat(Enumerable.Repeat("█", filled)) +
+               string.Concat(Enumerable.Repeat("░", bars - filled));
+    }
+
+    static string ExtractYouTubeId(string url)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(url,
+            @"(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)");
+        return match.Success ? match.Groups[1].Value : "";
+    }
+
+
     async Task RunAsync()
     {
         DailyStore.Load();
 
         var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
+        var lavalinkPassword = Environment.GetEnvironmentVariable("LAVALINK_PASSWORD") ?? "";
 
         if (token == null)
         {
@@ -107,11 +126,11 @@ class Program
 
         await Task.Delay(Timeout.Infinite);
 
-        var lavaConfig = new NodeConfiguration
+        var lavaConfig = new LavaConfig
         {
-            Hostname   = "localhost",
-            Port       = 2333,
-            Authorization = "yourpassword"  // must match application.yml
+            Hostname      = "localhost",
+            Port          = 2333,
+            Authorization = lavalinkPassword
         };
 
         _lavaNode = new LavaNode(_client, lavaConfig);
@@ -119,7 +138,8 @@ class Program
         _client.Ready += async () =>
         {
             Console.WriteLine("\nBot is ready!\n");
-            await _lavaNode.ConnectAsync();
+            if (!_lavaNode.IsConnected)
+                await _lavaNode.ConnectAsync();
         };
     }
 
@@ -785,7 +805,7 @@ class Program
 
             var player = _lavaNode.GetPlayer(guildChannel.Guild);
 
-            // !volume with no argument — show current volume
+            // volume with no argument — show current volume
             if (msg.Content.Trim() == "!volume")
             {
                 var current = _volumes.TryGetValue(guildChannel.Guild.Id, out var v) ? v : 100;
@@ -800,7 +820,7 @@ class Program
                 return;
             }
 
-            await player.SetVolumeAsync(volume);
+            await player.UpdateVolumeAsync((ushort)volume);
             _volumes[guildChannel.Guild.Id] = volume;
 
             var bar = BuildVolumeBar(volume);
@@ -847,7 +867,7 @@ class Program
 
             // Restore saved volume for this guild
             if (_volumes.TryGetValue(guildChannel.Guild.Id, out var savedVol))
-                await player.SetVolumeAsync(savedVol);
+                await player.UpdateVolumeAsync((ushort)savedVol);
 
             // Determine search type by URL
             SearchType searchType = query switch
@@ -869,14 +889,14 @@ class Program
 
             if (player.PlayerState == PlayerState.Playing || player.PlayerState == PlayerState.Paused)
             {
-                player.Vueue.Enqueue(track);
+                player.Queue.Enqueue(track);
 
                 var queueEmbed = new EmbedBuilder()
                     .WithTitle("Added to Queue")
                     .WithColor(Color.Blue)
                     .AddField("Track",    $"[{track.Title}]({track.Url})", inline: true)
                     .AddField("Duration", track.IsStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
-                    .AddField("Position", $"`#{player.Vueue.Count}`", inline: true)
+                    .AddField("Position", $"`#{player.Queue.Count}`", inline: true)
                     .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Url)}/hqdefault.jpg")
                     .WithCurrentTimestamp()
                     .Build();
