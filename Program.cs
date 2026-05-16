@@ -115,8 +115,7 @@ class Program
         {
             GatewayIntents = GatewayIntents.Guilds
                         | GatewayIntents.GuildMessages
-                        | GatewayIntents.GuildMembers
-                        | GatewayIntents.GuildVoiceStates  // needed for !join/!leave
+                        | GatewayIntents.GuildVoiceStates
                         | GatewayIntents.MessageContent
         };
 
