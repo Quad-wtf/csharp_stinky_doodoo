@@ -119,7 +119,15 @@ class Program
 
         _client.Log += msg => { Console.WriteLine(msg); return Task.CompletedTask; };
         _client.MessageReceived += OnMessageReceived;
-        _client.Ready += () => { Console.WriteLine("\nBot is ready!\n"); return Task.CompletedTask; };
+        _client.Ready += async () =>
+        {
+            Console.WriteLine("\nBot is ready!\n");
+            if (_lavaNode != null && !_lavaNode.IsConnected)
+            {
+                await _lavaNode.ConnectAsync();
+                Console.WriteLine("Lavalink connected!");
+            }
+        };
 
         await _client.LoginAsync(TokenType.Bot, token);
         await _client.StartAsync();
@@ -138,7 +146,7 @@ class Program
         _client.Ready += async () =>
         {
             Console.WriteLine("\nBot is ready!\n");
-            if (!_lavaNode.IsConnected)
+            if (_lavaNode != null && !_lavaNode.IsConnected)
                 await _lavaNode.ConnectAsync();
         };
     }
@@ -746,7 +754,14 @@ class Program
         // ── Voice: !join ──────────────────────────────────────────────────────────────
         if (msg.Content == "!join")
         {
+            if (_lavaNode == null)
+            {
+                await msg.Channel.SendMessageAsync("Lavalink is not connected yet, try again in a moment.");
+                return;
+            }
+
             var voiceChannel = (caller as IVoiceState)?.VoiceChannel;
+
             if (voiceChannel == null)
             {
                 await msg.Channel.SendMessageAsync("You need to be in a voice channel first.");
