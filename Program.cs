@@ -122,7 +122,9 @@ class Program
             GatewayIntents = GatewayIntents.Guilds
                         | GatewayIntents.GuildMessages
                         | GatewayIntents.GuildVoiceStates
-                        | GatewayIntents.MessageContent
+                        | GatewayIntents.MessageContent,
+            DefaultRetryMode = RetryMode.AlwaysRetry,
+            MessageCacheSize = 100
         };
 
         _client = new DiscordSocketClient(config);
@@ -146,7 +148,11 @@ class Program
         _ = host.StartAsync();
 
         _client.Log += msg => { Console.WriteLine(msg); return Task.CompletedTask; };
-        _client.MessageReceived += OnMessageReceived;
+        _client.MessageReceived += msg =>
+        {
+            _ = Task.Run(() => OnMessageReceived(msg));
+            return Task.CompletedTask;
+        };
 
         _client.Ready += () =>
         {
@@ -932,6 +938,45 @@ class Program
                 .Build();
 
             await msg.Channel.SendMessageAsync(embed: nowEmbed);
+        }
+        // ── Voice: !pause ─────────────────────────────────────────────────────────────
+        else if (msg.Content == "!pause")
+        {
+            var player = await _audioService!.Players.GetPlayerAsync<QueuedLavalinkPlayer>(guildChannel.Guild.Id);
+            if (player == null)
+            {
+                await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
+                return;
+            }
+
+            if (player.State != PlayerState.Playing)
+            {
+                await msg.Channel.SendMessageAsync("Nothing is playing right now.");
+                return;
+            }
+
+            await player.PauseAsync();
+            await msg.Channel.SendMessageAsync("Paused.");
+        }
+
+        // ── Voice: !resume ────────────────────────────────────────────────────────────
+        else if (msg.Content == "!resume")
+        {
+            var player = await _audioService!.Players.GetPlayerAsync<QueuedLavalinkPlayer>(guildChannel.Guild.Id);
+            if (player == null)
+            {
+                await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
+                return;
+            }
+
+            if (player.State != PlayerState.Paused)
+            {
+                await msg.Channel.SendMessageAsync("The player isn't paused.");
+                return;
+            }
+
+            await player.ResumeAsync();
+            await msg.Channel.SendMessageAsync("Resumed.");
         }
     }
 
