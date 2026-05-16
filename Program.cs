@@ -113,7 +113,11 @@ class Program
 
         var config = new DiscordSocketConfig
         {
-            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
+            GatewayIntents = GatewayIntents.Guilds
+                        | GatewayIntents.GuildMessages
+                        | GatewayIntents.GuildMembers
+                        | GatewayIntents.GuildVoiceStates  // needed for !join/!leave
+                        | GatewayIntents.MessageContent
         };
 
         _client = new DiscordSocketClient(config);
@@ -130,26 +134,26 @@ class Program
 
         _client.Log += msg => { Console.WriteLine(msg); return Task.CompletedTask; };
         _client.MessageReceived += OnMessageReceived;
-        _client.Ready += async () =>
+        _client.Ready += () =>
         {
             Console.WriteLine("\nBot is ready!\n");
-            await Task.Delay(2000);
-            try
+            _ = Task.Run(async () =>
             {
-                if (!_lavaNode.IsConnected)
+                await Task.Delay(2000);
+                try
                 {
-                    await _lavaNode.ConnectAsync();
-                    Console.WriteLine("Lavalink connected!");
+                    if (!_lavaNode.IsConnected)
+                    {
+                        await _lavaNode.ConnectAsync();
+                        Console.WriteLine("Lavalink connected!");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine("Lavalink was already connected.");
+                    Console.WriteLine($"Lavalink connection failed: {ex.Message}");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Lavalink connection failed: {ex.Message}");
-            }
+            });
+            return Task.CompletedTask;
         };
 
         await _client.LoginAsync(TokenType.Bot, token);
