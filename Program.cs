@@ -136,7 +136,7 @@ class Program
 
         var lavaConfig = new LavaConfig
         {
-            Hostname      = "localhost",
+            Hostname      = "127.0.0.1",
             Port          = 2333,
             Authorization = lavalinkPassword
         };
