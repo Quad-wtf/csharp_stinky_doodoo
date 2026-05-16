@@ -2,9 +2,15 @@
 using Discord.WebSocket;
 using System.Diagnostics;
 using System.Text.Json;
-using Victoria;
-using Victoria.Enums;
-using Victoria.Responses.Search;
+using Lavalink4NET;
+using Lavalink4NET.Players;
+using Lavalink4NET.Players.Queued;
+using Lavalink4NET.Extensions;
+using Lavalink4NET.Rest.Entities.Tracks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+
 
 static class Emojis
 {
@@ -75,7 +81,7 @@ class Program
     "!join", "!leave", "!bye", "!volume", "!play"
     ];
 
-    private LavaNode? _lavaNode;
+    private IAudioService? _audioService;
     private static readonly Dictionary<ulong, int> _volumes = new(); // guildId -> volume (0-100)
 
     static async Task Main() => await new Program().RunAsync();
@@ -122,30 +128,35 @@ class Program
         _client = new DiscordSocketClient(config);
 
         // Set up Lavalink BEFORE starting the client
-        var lavaConfig = new LavaConfig
-        {
-            Hostname      = "127.0.0.1",
-            Port          = 2333,
-            Authorization = lavalinkPassword
-        };
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(_client);
+                services.AddLavalink();
+                services.ConfigureLavalink(x =>
+                {
+                    x.BaseAddress = new Uri("http://127.0.0.1:2333");
+                    x.Passphrase  = lavalinkPassword;
+                });
+            })
+            .Build();
 
-        _lavaNode = new LavaNode(_client, lavaConfig);
+        _audioService = host.Services.GetRequiredService<IAudioService>();
+
+        _ = host.StartAsync();
 
         _client.Log += msg => { Console.WriteLine(msg); return Task.CompletedTask; };
         _client.MessageReceived += OnMessageReceived;
+
         _client.Ready += () =>
         {
             Console.WriteLine("\nBot is ready!\n");
             _ = Task.Run(async () =>
             {
-                await Task.Delay(2000);
                 try
                 {
-                    if (!_lavaNode.IsConnected)
-                    {
-                        await _lavaNode.ConnectAsync();
-                        Console.WriteLine("Lavalink connected!");
-                    }
+                    await _audioService!.WaitForReadyAsync(CancellationToken.None);
+                    Console.WriteLine("Lavalink connected!");
                 }
                 catch (Exception ex)
                 {
@@ -762,31 +773,36 @@ class Program
         }
 
         // ── Voice: !join ──────────────────────────────────────────────────────────────
-        if (msg.Content == "!join")
+        else if (msg.Content == "!join")
         {
-            if (_lavaNode == null)
+            if (_audioService == null)
             {
-                await msg.Channel.SendMessageAsync("Lavalink is not connected yet, try again in a moment.");
+                await msg.Channel.SendMessageAsync("Audio service is not ready yet.");
                 return;
             }
 
             var voiceChannel = (caller as IVoiceState)?.VoiceChannel;
-
             if (voiceChannel == null)
             {
                 await msg.Channel.SendMessageAsync("You need to be in a voice channel first.");
                 return;
             }
 
-            if (_lavaNode!.HasPlayer(guildChannel.Guild))
-            {
-                await msg.Channel.SendMessageAsync("I'm already in a voice channel.");
-                return;
-            }
-
             try
             {
-                await _lavaNode.JoinAsync(voiceChannel, (ITextChannel)msg.Channel);
+                var result = await _audioService.Players.RetrieveAsync(
+                guildChannel.Guild.Id,
+                voiceChannel.Id,
+                PlayerFactory.Queued,
+                Options.Create(new QueuedLavalinkPlayerOptions()),
+                new PlayerRetrieveOptions(ChannelBehavior: PlayerChannelBehavior.Join));
+
+                if (!result.IsSuccess)
+                {
+                    await msg.Channel.SendMessageAsync($"Couldn't connect to voice: {result.Status}");
+                    return;
+                }
+
                 await msg.Channel.SendMessageAsync($"Joined **{voiceChannel.Name}**!");
             }
             catch (Exception ex)
@@ -796,41 +812,32 @@ class Program
         }
 
         // ── Voice: !leave / !bye ──────────────────────────────────────────────────────
-        if (msg.Content == "!leave" || msg.Content == "!bye")
+        else if (msg.Content == "!leave" || msg.Content == "!bye")
         {
-            if (!_lavaNode!.HasPlayer(guildChannel.Guild))
+            var player = await _audioService!.Players.GetPlayerAsync<QueuedLavalinkPlayer>(guildChannel.Guild.Id);
+            if (player == null)
             {
                 await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(guildChannel.Guild);
-            var channelName = player.VoiceChannel.Name;
+            var channelName = (guildChannel.Guild as SocketGuild)?.GetVoiceChannel(player.VoiceChannelId)?.Name ?? "voice channel";
 
-            try
-            {
-                await _lavaNode.LeaveAsync(player.VoiceChannel);
-                _volumes.Remove(guildChannel.Guild.Id);
-                await msg.Channel.SendMessageAsync($"Left **{channelName}**. Bye! {Emojis.bnuyinlove}");
-            }
-            catch (Exception ex)
-            {
-                await msg.Channel.SendMessageAsync($"Failed to leave: {ex.Message}");
-            }
+            await player.DisconnectAsync();
+            _volumes.Remove(guildChannel.Guild.Id);
+            await msg.Channel.SendMessageAsync($"Left **{channelName}**. Bye! {Emojis.bnuyinlove}");
         }
 
         // ── Voice: !volume ────────────────────────────────────────────────────────────
-        if (msg.Content.StartsWith("!volume"))
+        else if (msg.Content.StartsWith("!volume"))
         {
-            if (!_lavaNode!.HasPlayer(guildChannel.Guild))
+            var player = await _audioService!.Players.GetPlayerAsync<QueuedLavalinkPlayer>(guildChannel.Guild.Id);
+            if (player == null)
             {
                 await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(guildChannel.Guild);
-
-            // volume with no argument — show current volume
             if (msg.Content.Trim() == "!volume")
             {
                 var current = _volumes.TryGetValue(guildChannel.Guild.Id, out var v) ? v : 100;
@@ -845,7 +852,7 @@ class Program
                 return;
             }
 
-            await player.UpdateVolumeAsync((ushort)volume);
+            await player.SetVolumeAsync(volume / 100f);
             _volumes[guildChannel.Guild.Id] = volume;
 
             var bar = BuildVolumeBar(volume);
@@ -853,7 +860,7 @@ class Program
         }
 
         // ── Voice: !play ──────────────────────────────────────────────────────────────
-        if (msg.Content.StartsWith("!play "))
+        else if (msg.Content.StartsWith("!play "))
         {
             var query = msg.Content[6..].Trim();
 
@@ -863,10 +870,9 @@ class Program
                 return;
             }
 
-            // Validate the URL is from an allowed source
             bool isAllowedSource =
-                query.Contains("youtube.com") || query.Contains("youtu.be")  ||
-                query.Contains("spotify.com")                                 ||
+                query.Contains("youtube.com") || query.Contains("youtu.be") ||
+                query.Contains("spotify.com")                               ||
                 query.Contains("soundcloud.com");
 
             if (!isAllowedSource)
@@ -876,57 +882,40 @@ class Program
                 return;
             }
 
-            // Auto-join the caller's voice channel if not already in one
-            if (!_lavaNode!.HasPlayer(guildChannel.Guild))
+            if (_audioService == null)
             {
-                var voiceChannel = (caller as IVoiceState)?.VoiceChannel;
-                if (voiceChannel == null)
-                {
-                    await msg.Channel.SendMessageAsync("Join a voice channel first, or use `!join`.");
-                    return;
-                }
-                await _lavaNode.JoinAsync(voiceChannel, (ITextChannel)msg.Channel);
-            }
-
-            var player = _lavaNode.GetPlayer(guildChannel.Guild);
-
-            // Restore saved volume for this guild
-            if (_volumes.TryGetValue(guildChannel.Guild.Id, out var savedVol))
-                await player.UpdateVolumeAsync((ushort)savedVol);
-
-            // Determine search type by URL
-            SearchType searchType = query switch
-            {
-                _ when query.Contains("youtube.com") || query.Contains("youtu.be") => SearchType.YouTube,
-                _ when query.Contains("soundcloud.com")                             => SearchType.SoundCloud,
-                _                                                                   => SearchType.Direct  // Spotify via LavaSrc plugin resolves as direct
-            };
-
-            var search = await _lavaNode.SearchAsync(searchType, query);
-
-            if (search.Status is SearchStatus.NoMatches or SearchStatus.LoadFailed)
-            {
-                await msg.Channel.SendMessageAsync($"Couldn't load that track. Double-check the link. {Emojis.I_DUNNO}");
+                await msg.Channel.SendMessageAsync("Audio service is not ready yet.");
                 return;
             }
 
-            var track = search.Tracks.First();
-
-            if (player.PlayerState == PlayerState.Playing || player.PlayerState == PlayerState.Paused)
+            var voiceChannel = (caller as IVoiceState)?.VoiceChannel;
+            if (voiceChannel == null)
             {
-                player.Queue.Enqueue(track);
+                await msg.Channel.SendMessageAsync("Join a voice channel first.");
+                return;
+            }
 
-                var queueEmbed = new EmbedBuilder()
-                    .WithTitle("Added to Queue")
-                    .WithColor(Color.Blue)
-                    .AddField("Track",    $"[{track.Title}]({track.Url})", inline: true)
-                    .AddField("Duration", track.IsStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
-                    .AddField("Position", $"`#{player.Queue.Count}`", inline: true)
-                    .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Url)}/hqdefault.jpg")
-                    .WithCurrentTimestamp()
-                    .Build();
+            var joinResult = await _audioService.Players.RetrieveAsync(
+                guildChannel.Guild.Id,
+                voiceChannel.Id,
+                PlayerFactory.Queued,
+                Options.Create(new QueuedLavalinkPlayerOptions()),
+                new PlayerRetrieveOptions(ChannelBehavior: PlayerChannelBehavior.Join));
 
-                await msg.Channel.SendMessageAsync(embed: queueEmbed);
+            if (!joinResult.IsSuccess)
+            {
+                await msg.Channel.SendMessageAsync($"Couldn't connect to voice: {joinResult.Status}");
+                return;
+            }
+
+            var player = joinResult.Player;
+            if (_volumes.TryGetValue(guildChannel.Guild.Id, out var savedVol))
+                await player.SetVolumeAsync(savedVol / 100f);
+
+            var track = await _audioService.Tracks.LoadTrackAsync(query, TrackSearchMode.None);
+            if (track == null)
+            {
+                await msg.Channel.SendMessageAsync($"Couldn't load that track. Double-check the link. {Emojis.I_DUNNO}");
                 return;
             }
 
@@ -935,10 +924,10 @@ class Program
             var nowEmbed = new EmbedBuilder()
                 .WithTitle("Now Playing")
                 .WithColor(Color.Green)
-                .AddField("Track",    $"[{track.Title}]({track.Url})", inline: true)
-                .AddField("Duration", track.IsStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
+                .AddField("Track",    $"[{track.Title}]({track.Uri})", inline: true)
+                .AddField("Duration", track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
                 .AddField("Volume",   $"`{(_volumes.TryGetValue(guildChannel.Guild.Id, out var vol) ? vol : 100)}%`", inline: true)
-                .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Url)}/hqdefault.jpg")
+                .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Uri?.ToString() ?? "")}/hqdefault.jpg")
                 .WithCurrentTimestamp()
                 .Build();
 

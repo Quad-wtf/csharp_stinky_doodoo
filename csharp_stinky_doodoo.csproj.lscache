@@ -90,7 +90,6 @@ Program.cs
  System.Data.dll
  System.Diagnostics.Contracts.dll
  System.Diagnostics.Debug.dll
- System.Diagnostics.DiagnosticSource.dll
  System.Diagnostics.FileVersionInfo.dll
  System.Diagnostics.Process.dll
  System.Diagnostics.StackTrace.dll
@@ -119,7 +118,6 @@ Program.cs
  System.IO.FileSystem.Watcher.dll
  System.IO.IsolatedStorage.dll
  System.IO.MemoryMappedFiles.dll
- System.IO.Pipelines.dll
  System.IO.Pipes.AccessControl.dll
  System.IO.Pipes.dll
  System.IO.UnmanagedMemoryStream.dll
@@ -197,8 +195,6 @@ Program.cs
  System.Text.Encoding.CodePages.dll
  System.Text.Encoding.dll
  System.Text.Encoding.Extensions.dll
- System.Text.Encodings.Web.dll
- System.Text.Json.dll
  System.Text.RegularExpressions.dll
  System.Threading.Channels.dll
  System.Threading.dll
@@ -234,11 +230,48 @@ Program.cs
  discord.net.rest/3.19.1/lib/net9.0/Discord.Net.Rest.dll
  discord.net.webhook/3.19.1/lib/net9.0/Discord.Net.Webhook.dll
  discord.net.websocket/3.19.1/lib/net9.0/Discord.Net.WebSocket.dll
- microsoft.extensions.dependencyinjection.abstractions/10.0.0/lib/net9.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
- microsoft.extensions.dependencyinjection/5.0.2/lib/net5.0/Microsoft.Extensions.DependencyInjection.dll
+ lavalink4net.abstractions/4.2.1/lib/net9.0/Lavalink4NET.Abstractions.dll
+ lavalink4net.discord.net/4.2.1/lib/net8.0/Lavalink4NET.DiscordNet.dll
+ lavalink4net.protocol/4.2.1/lib/net9.0/Lavalink4NET.Protocol.dll
+ lavalink4net.rest/4.2.1/lib/net9.0/Lavalink4NET.Rest.dll
+ lavalink4net/4.2.1/lib/net9.0/Lavalink4NET.dll
+ microsoft.extensions.caching.abstractions/10.0.0/lib/net9.0/Microsoft.Extensions.Caching.Abstractions.dll
+ microsoft.extensions.caching.memory/10.0.0/lib/net9.0/Microsoft.Extensions.Caching.Memory.dll
+ microsoft.extensions.configuration.abstractions/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.Abstractions.dll
+ microsoft.extensions.configuration.binder/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.Binder.dll
+ microsoft.extensions.configuration.commandline/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.CommandLine.dll
+ microsoft.extensions.configuration.environmentvariables/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.EnvironmentVariables.dll
+ microsoft.extensions.configuration.fileextensions/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.FileExtensions.dll
+ microsoft.extensions.configuration.json/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.Json.dll
+ microsoft.extensions.configuration.usersecrets/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.UserSecrets.dll
+ microsoft.extensions.configuration/10.0.8/lib/net9.0/Microsoft.Extensions.Configuration.dll
+ microsoft.extensions.dependencyinjection.abstractions/10.0.8/lib/net9.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+ microsoft.extensions.dependencyinjection/10.0.8/lib/net9.0/Microsoft.Extensions.DependencyInjection.dll
+ microsoft.extensions.diagnostics.abstractions/10.0.8/lib/net9.0/Microsoft.Extensions.Diagnostics.Abstractions.dll
+ microsoft.extensions.diagnostics/10.0.8/lib/net9.0/Microsoft.Extensions.Diagnostics.dll
+ microsoft.extensions.fileproviders.abstractions/10.0.8/lib/net9.0/Microsoft.Extensions.FileProviders.Abstractions.dll
+ microsoft.extensions.fileproviders.physical/10.0.8/lib/net9.0/Microsoft.Extensions.FileProviders.Physical.dll
+ microsoft.extensions.filesystemglobbing/10.0.8/lib/net9.0/Microsoft.Extensions.FileSystemGlobbing.dll
+ microsoft.extensions.hosting.abstractions/10.0.8/lib/net9.0/Microsoft.Extensions.Hosting.Abstractions.dll
+ microsoft.extensions.hosting/10.0.8/lib/net9.0/Microsoft.Extensions.Hosting.dll
+ microsoft.extensions.http/10.0.0/lib/net9.0/Microsoft.Extensions.Http.dll
+ microsoft.extensions.logging.abstractions/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.Abstractions.dll
+ microsoft.extensions.logging.configuration/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.Configuration.dll
+ microsoft.extensions.logging.console/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.Console.dll
+ microsoft.extensions.logging.debug/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.Debug.dll
+ microsoft.extensions.logging.eventlog/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.EventLog.dll
+ microsoft.extensions.logging.eventsource/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.EventSource.dll
+ microsoft.extensions.logging/10.0.8/lib/net9.0/Microsoft.Extensions.Logging.dll
+ microsoft.extensions.options.configurationextensions/10.0.8/lib/net9.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll
+ microsoft.extensions.options/10.0.8/lib/net9.0/Microsoft.Extensions.Options.dll
+ microsoft.extensions.primitives/10.0.8/lib/net9.0/Microsoft.Extensions.Primitives.dll
  newtonsoft.json/13.0.4/lib/net6.0/Newtonsoft.Json.dll
+ system.diagnostics.diagnosticsource/10.0.8/lib/net9.0/System.Diagnostics.DiagnosticSource.dll
+ system.diagnostics.eventlog/10.0.8/lib/net9.0/System.Diagnostics.EventLog.dll
+ system.io.pipelines/10.0.8/lib/net9.0/System.IO.Pipelines.dll
  system.linq.asyncenumerable/10.0.0/lib/net9.0/System.Linq.AsyncEnumerable.dll
- victoria/5.2.2/lib/netcoreapp3.1/Victoria.dll
+ system.text.encodings.web/10.0.8/lib/net9.0/System.Text.Encodings.Web.dll
+ system.text.json/10.0.8/lib/net9.0/System.Text.Json.dll
 
 [analyzerReferences]
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/9.0.16/analyzers/dotnet/cs/
@@ -246,14 +279,17 @@ Program.cs
  Microsoft.Interop.JavaScript.JSImportGenerator.dll
  Microsoft.Interop.LibraryImportGenerator.dll
  Microsoft.Interop.SourceGeneration.dll
- System.Text.Json.SourceGeneration.dll
  System.Text.RegularExpressions.Generator.dll
 <DOTNET>/sdk/9.0.314/Sdks/Microsoft.NET.Sdk/analyzers/
  Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
  Microsoft.CodeAnalysis.NetAnalyzers.dll
-<NUGET>/microsoft.net.illink.tasks/9.0.16/analyzers/dotnet/cs/
- ILLink.CodeFixProvider.dll
- ILLink.RoslynAnalyzer.dll
+<NUGET>/
+ microsoft.extensions.logging.abstractions/10.0.8/analyzers/dotnet/roslyn4.4/cs/Microsoft.Extensions.Logging.Generators.dll
+ microsoft.extensions.options/10.0.8/analyzers/dotnet/roslyn4.4/cs/Microsoft.Extensions.Options.SourceGeneration.dll
+ microsoft.net.illink.tasks/9.0.16/analyzers/dotnet/cs/
+  ILLink.CodeFixProvider.dll
+  ILLink.RoslynAnalyzer.dll
+ system.text.json/10.0.8/analyzers/dotnet/roslyn4.4/cs/System.Text.Json.SourceGeneration.dll
 
 [analyzerConfigFiles]
 <DOTNET>/sdk/9.0.314/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_9_default.globalconfig
