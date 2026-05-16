@@ -146,8 +146,23 @@ class Program
         _client.Ready += async () =>
         {
             Console.WriteLine("\nBot is ready!\n");
-            if (_lavaNode != null && !_lavaNode.IsConnected)
-                await _lavaNode.ConnectAsync();
+            await Task.Delay(2000); // give Victoria a moment
+            try
+            {
+                if (!_lavaNode!.IsConnected)
+                {
+                    await _lavaNode.ConnectAsync();
+                    Console.WriteLine("Lavalink connected!");
+                }
+                else
+                {
+                    Console.WriteLine("Lavalink was already connected.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lavalink connection failed: {ex.Message}");
+            }
         };
     }
 
