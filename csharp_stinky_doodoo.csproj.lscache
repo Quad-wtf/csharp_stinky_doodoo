@@ -13,8 +13,19 @@ primary
 lastDtbSucceeded
 
 [properties]
+AssemblyName=csharp_stinky_doodoo
+CommandLineArgsForDesignTimeEvaluation=-langversion:13.0 -define:TRACE
+CompilerGeneratedFilesOutputPath=
+MaxSupportedLangVersion=13.0
+ProjectAssetsFile=<PATH>obj/project.assets.json
+RootNamespace=csharp_stinky_doodoo
+RunAnalyzers=
+RunAnalyzersDuringLiveAnalysis=
+SolutionPath=<PATH>csharp_stinky_doodoo.sln
+TargetFrameworkIdentifier=.NETCoreApp
 TargetPath=<PATH>bin/Debug/net9.0/win-x64/csharp_stinky_doodoo.dll
 TargetRefPath=<PATH>obj/Debug/net9.0/win-x64/ref/csharp_stinky_doodoo.dll
+TemporaryDependencyNodeTargetIdentifier=net9.0
 
 [commandLineArguments]
 /noconfig

@@ -1,16 +1,21 @@
-# Compilation products, other secret stuffs ;)
-
+# Config files with secrets
 config.json
 application.yml
 daily.json
-commit.ps1
 
-*.lscache
+# Lavalink
 Lavalink.jar
 
+# Build output
 bin/
 obj/
+csharp_stinky_doodoo.csproj.lscache
 
+
+# IDE
 .vs/
 .vscode/
 *.user
+
+# Other
+commit.ps1

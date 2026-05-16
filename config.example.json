@@ -1,3 +1,6 @@
 {
-    "token": "YOUR_TOKEN_HERE"
+  "token": "YOUR_DISCORD_TOKEN_HERE",
+  "lavalink_password": "YOUR_LAVALINK_PASSWORD_HERE",
+  "spotify_client_id": "YOUR_SPOTIFY_CLIENT_ID_HERE",
+  "spotify_client_secret": "YOUR_SPOTIFY_CLIENT_SECRET_HERE"
 }

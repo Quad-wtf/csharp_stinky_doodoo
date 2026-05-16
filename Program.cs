@@ -1,11 +1,8 @@
 ﻿using Discord;
 using Discord.WebSocket;
-using Discord.Rest;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Diagnostics.Contracts;
+using Victoria;
 
 static class Emojis
 {
@@ -76,6 +73,9 @@ class Program
     "!join", "!leave", "!bye", "!volume", "!play"
     ];
 
+    private LavaNode? _lavaNode;
+    private static readonly Dictionary<ulong, int> _volumes = new(); // guildId -> volume (0-100)
+
     static async Task Main() => await new Program().RunAsync();
 
     async Task RunAsync()
@@ -106,6 +106,21 @@ class Program
         await _client.StartAsync();
 
         await Task.Delay(Timeout.Infinite);
+
+        var lavaConfig = new NodeConfiguration
+        {
+            Hostname   = "localhost",
+            Port       = 2333,
+            Authorization = "yourpassword"  // must match application.yml
+        };
+
+        _lavaNode = new LavaNode(_client, lavaConfig);
+
+        _client.Ready += async () =>
+        {
+            Console.WriteLine("\nBot is ready!\n");
+            await _lavaNode.ConnectAsync();
+        };
     }
 
     // Resolves a guild member by ID — checks cache first, falls back to REST API
@@ -606,7 +621,7 @@ class Program
                 await msg.Channel.SendMessageAsync($"Announcement sent to {targetChannel.Mention}!");
         }
 
-        if (msg.Content.StartsWith("!maintenance "))
+        else if (msg.Content.StartsWith("!maintenance "))
         {
             if (!caller.GuildPermissions.ManageGuild)
             {
@@ -614,9 +629,41 @@ class Program
                 return;
             }
 
-            // Parse: !maintenance From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm
             var args = msg.Content[13..].Trim();
 
+            // Extract target channel
+            var mentionedChannel = msg.MentionedChannels.FirstOrDefault();
+            ulong targetChannelId = 0;
+
+            if (mentionedChannel != null)
+            {
+                targetChannelId = mentionedChannel.Id;
+                var mentionStr = $"<#{mentionedChannel.Id}>";
+                args = args[(args.IndexOf(mentionStr) + mentionStr.Length)..].Trim();
+            }
+            else
+            {
+                // Try raw channel ID as first token
+                var spaceIdx = args.IndexOf(' ');
+                if (spaceIdx > 0 && ulong.TryParse(args[..spaceIdx], out targetChannelId))
+                    args = args[(spaceIdx + 1)..].Trim();
+            }
+
+            if (targetChannelId == 0)
+            {
+                await msg.Channel.SendMessageAsync(
+                    "Please specify a channel. Usage: `!maintenance #channel From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm`");
+                return;
+            }
+
+            var targetChannel = guildChannel.Guild.GetTextChannel(targetChannelId);
+            if (targetChannel == null)
+            {
+                await msg.Channel.SendMessageAsync("Couldn't find that channel in this server.");
+                return;
+            }
+
+            // Parse timestamps from whatever remains after stripping the channel
             var fromMatch = System.Text.RegularExpressions.Regex.Match(args,
                 @"From:(\d{2}/\d{2}/\d{4})[\s]+(\d{2}[:.]\d{2})");
             var toMatch = System.Text.RegularExpressions.Regex.Match(args,
@@ -625,7 +672,7 @@ class Program
             if (!fromMatch.Success || !toMatch.Success)
             {
                 await msg.Channel.SendMessageAsync(
-                    "Usage: `!maintenance From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm`");
+                    "Usage: `!maintenance #channel From:dd/mm/yyyy hh:mm To:dd/mm/yyyy hh:mm`");
                 return;
             }
 
@@ -653,7 +700,6 @@ class Program
                 ? $"{(int)duration.TotalHours}h {duration.Minutes}m"
                 : $"{duration.Minutes}m";
 
-            // Convert to Unix timestamps for Discord's <t:> formatting
             var fromUnix = ((DateTimeOffset)DateTime.SpecifyKind(fromTime, DateTimeKind.Utc)).ToUnixTimeSeconds();
             var toUnix   = ((DateTimeOffset)DateTime.SpecifyKind(toTime,   DateTimeKind.Utc)).ToUnixTimeSeconds();
 
@@ -661,9 +707,9 @@ class Program
                 .WithTitle("🔧 Scheduled Maintenance")
                 .WithColor(new Color(0xFF6600))
                 .WithDescription(
-                    $"@everyone\n\n" +
-                    $"The bot will be undergoing scheduled maintenance.\n" +
-                    $"During this window, all commands will be unavailable.")
+                    "@everyone\n\n" +
+                    "The bot will be undergoing scheduled maintenance.\n" +
+                    "During this window, all commands will be unavailable.")
                 .AddField("Start",    $"<t:{fromUnix}:F>", inline: true)
                 .AddField("End",      $"<t:{toUnix}:F>",   inline: true)
                 .AddField("Duration", $"`{durationStr}`",   inline: true)
@@ -671,10 +717,187 @@ class Program
                 .WithCurrentTimestamp()
                 .Build();
 
-            await msg.Channel.SendMessageAsync("@everyone", embed: embed);
+            await targetChannel.SendMessageAsync("@everyone", embed: embed);
 
-            if (msg.Channel.Id != msg.Channel.Id) // placeholder; extend if cross-channel support is needed
-                await msg.Channel.SendMessageAsync("Maintenance notice sent!");
+            if (targetChannel.Id != msg.Channel.Id)
+                await msg.Channel.SendMessageAsync($"Maintenance notice sent to {targetChannel.Mention}!");
+        }
+
+        // ── Voice: !join ──────────────────────────────────────────────────────────────
+        if (msg.Content == "!join")
+        {
+            var voiceChannel = (caller as IVoiceState)?.VoiceChannel;
+            if (voiceChannel == null)
+            {
+                await msg.Channel.SendMessageAsync("You need to be in a voice channel first.");
+                return;
+            }
+
+            if (_lavaNode!.HasPlayer(guildChannel.Guild))
+            {
+                await msg.Channel.SendMessageAsync("I'm already in a voice channel.");
+                return;
+            }
+
+            try
+            {
+                await _lavaNode.JoinAsync(voiceChannel, (ITextChannel)msg.Channel);
+                await msg.Channel.SendMessageAsync($"Joined **{voiceChannel.Name}**!");
+            }
+            catch (Exception ex)
+            {
+                await msg.Channel.SendMessageAsync($"Failed to join: {ex.Message}");
+            }
+        }
+
+        // ── Voice: !leave / !bye ──────────────────────────────────────────────────────
+        if (msg.Content == "!leave" || msg.Content == "!bye")
+        {
+            if (!_lavaNode!.HasPlayer(guildChannel.Guild))
+            {
+                await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
+                return;
+            }
+
+            var player = _lavaNode.GetPlayer(guildChannel.Guild);
+            var channelName = player.VoiceChannel.Name;
+
+            try
+            {
+                await _lavaNode.LeaveAsync(player.VoiceChannel);
+                _volumes.Remove(guildChannel.Guild.Id);
+                await msg.Channel.SendMessageAsync($"Left **{channelName}**. Bye! {Emojis.bnuyinlove}");
+            }
+            catch (Exception ex)
+            {
+                await msg.Channel.SendMessageAsync($"Failed to leave: {ex.Message}");
+            }
+        }
+
+        // ── Voice: !volume ────────────────────────────────────────────────────────────
+        if (msg.Content.StartsWith("!volume"))
+        {
+            if (!_lavaNode!.HasPlayer(guildChannel.Guild))
+            {
+                await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
+                return;
+            }
+
+            var player = _lavaNode.GetPlayer(guildChannel.Guild);
+
+            // !volume with no argument — show current volume
+            if (msg.Content.Trim() == "!volume")
+            {
+                var current = _volumes.TryGetValue(guildChannel.Guild.Id, out var v) ? v : 100;
+                await msg.Channel.SendMessageAsync($"Current volume: **{current}%**");
+                return;
+            }
+
+            var rawVol = msg.Content[8..].Trim();
+            if (!int.TryParse(rawVol, out var volume) || volume < 0 || volume > 100)
+            {
+                await msg.Channel.SendMessageAsync("Volume must be a number between 0 and 100.");
+                return;
+            }
+
+            await player.SetVolumeAsync(volume);
+            _volumes[guildChannel.Guild.Id] = volume;
+
+            var bar = BuildVolumeBar(volume);
+            await msg.Channel.SendMessageAsync($"Volume set to **{volume}%**\n{bar}");
+        }
+
+        // ── Voice: !play ──────────────────────────────────────────────────────────────
+        if (msg.Content.StartsWith("!play "))
+        {
+            var query = msg.Content[6..].Trim();
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                await msg.Channel.SendMessageAsync("Usage: `!play <YouTube/Spotify/SoundCloud URL>`");
+                return;
+            }
+
+            // Validate the URL is from an allowed source
+            bool isAllowedSource =
+                query.Contains("youtube.com") || query.Contains("youtu.be")  ||
+                query.Contains("spotify.com")                                 ||
+                query.Contains("soundcloud.com");
+
+            if (!isAllowedSource)
+            {
+                await msg.Channel.SendMessageAsync(
+                    $"Only YouTube, Spotify, and SoundCloud links are supported. {Emojis.nahnahnah}");
+                return;
+            }
+
+            // Auto-join the caller's voice channel if not already in one
+            if (!_lavaNode!.HasPlayer(guildChannel.Guild))
+            {
+                var voiceChannel = (caller as IVoiceState)?.VoiceChannel;
+                if (voiceChannel == null)
+                {
+                    await msg.Channel.SendMessageAsync("Join a voice channel first, or use `!join`.");
+                    return;
+                }
+                await _lavaNode.JoinAsync(voiceChannel, (ITextChannel)msg.Channel);
+            }
+
+            var player = _lavaNode.GetPlayer(guildChannel.Guild);
+
+            // Restore saved volume for this guild
+            if (_volumes.TryGetValue(guildChannel.Guild.Id, out var savedVol))
+                await player.SetVolumeAsync(savedVol);
+
+            // Determine search type by URL
+            SearchType searchType = query switch
+            {
+                _ when query.Contains("youtube.com") || query.Contains("youtu.be") => SearchType.YouTube,
+                _ when query.Contains("soundcloud.com")                             => SearchType.SoundCloud,
+                _                                                                   => SearchType.Direct  // Spotify via LavaSrc plugin resolves as direct
+            };
+
+            var search = await _lavaNode.SearchAsync(searchType, query);
+
+            if (search.Status is SearchStatus.NoMatches or SearchStatus.LoadFailed)
+            {
+                await msg.Channel.SendMessageAsync($"Couldn't load that track. Double-check the link. {Emojis.I_DUNNO}");
+                return;
+            }
+
+            var track = search.Tracks.First();
+
+            if (player.PlayerState == PlayerState.Playing || player.PlayerState == PlayerState.Paused)
+            {
+                player.Vueue.Enqueue(track);
+
+                var queueEmbed = new EmbedBuilder()
+                    .WithTitle("Added to Queue")
+                    .WithColor(Color.Blue)
+                    .AddField("Track",    $"[{track.Title}]({track.Url})", inline: true)
+                    .AddField("Duration", track.IsStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
+                    .AddField("Position", $"`#{player.Vueue.Count}`", inline: true)
+                    .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Url)}/hqdefault.jpg")
+                    .WithCurrentTimestamp()
+                    .Build();
+
+                await msg.Channel.SendMessageAsync(embed: queueEmbed);
+                return;
+            }
+
+            await player.PlayAsync(track);
+
+            var nowEmbed = new EmbedBuilder()
+                .WithTitle("Now Playing")
+                .WithColor(Color.Green)
+                .AddField("Track",    $"[{track.Title}]({track.Url})", inline: true)
+                .AddField("Duration", track.IsStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
+                .AddField("Volume",   $"`{(_volumes.TryGetValue(guildChannel.Guild.Id, out var vol) ? vol : 100)}%`", inline: true)
+                .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Url)}/hqdefault.jpg")
+                .WithCurrentTimestamp()
+                .Build();
+
+            await msg.Channel.SendMessageAsync(embed: nowEmbed);
         }
     }
 
