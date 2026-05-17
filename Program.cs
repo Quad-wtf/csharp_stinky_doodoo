@@ -254,6 +254,30 @@ class Program
             string discordNetVersion = typeof(DiscordSocketClient).Assembly.GetName().Version?.ToString(3) ?? "?";
             string dotnetVersion = Environment.Version.ToString();
 
+            // Voice stats
+            int activeVoiceConnections = 0;
+            int tracksInQueues = 0;
+            bool lavalinkConnected = false;
+
+            if (_audioService != null)
+            {
+                try
+                {
+                    var players = _audioService.Players.Players.OfType<QueuedLavalinkPlayer>();
+                    activeVoiceConnections = players.Count();
+                    tracksInQueues = players.Sum(p => p.Queue.Count + (p.CurrentTrack != null ? 1 : 0));
+                    lavalinkConnected = true;
+                }
+                catch { lavalinkConnected = false; }
+            }
+
+            // Daily system stats
+            int totalDailyUsers = DailyStore.Data.Count;
+            int totalPoints = DailyStore.Data.Values.Sum(d => d.Points);
+            int topStreak = DailyStore.Data.Values.Any()
+                ? DailyStore.Data.Values.Max(d => d.Streak)
+                : 0;
+
             var embed = new EmbedBuilder()
                 .WithTitle($"{Emojis.coolguy} Pong!")
                 .WithColor(gatewayLatency switch
@@ -263,13 +287,26 @@ class Program
                     _     => Color.Red
                 })
                 .WithCurrentTimestamp()
-                .AddField("Gateway Latency", $"`{gatewayLatency}ms`",               inline: true)
-                .AddField("Message Latency", $"`{messageLatency}ms`",               inline: true)
-                .AddField("RAM Usage",       $"`{ramUsedMB} MB / {totalRamMB} MB`", inline: true)
-                .AddField("Uptime",          $"`{uptimeStr}`",                      inline: true)
-                .AddField("Commands",        $"`{_commands.Length}`",               inline: true)
-                .AddField("Discord.Net",     $"`v{discordNetVersion}`",             inline: true)
-                .AddField(".NET Runtime",    $"`v{dotnetVersion}`",                 inline: true)
+                // Latency
+                .AddField("Gateway Latency", $"`{gatewayLatency}ms`",  inline: true)
+                .AddField("Message Latency", $"`{messageLatency}ms`",  inline: true)
+                .AddField("Uptime",          $"`{uptimeStr}`",          inline: true)
+                // System
+                .AddField("RAM Usage",    $"`{ramUsedMB} MB / {totalRamMB} MB`", inline: true)
+                .AddField("Commands",     $"`{_commands.Length}`",               inline: true)
+                .AddField("AFK Users",    $"`{_afkUsers.Count}`",                inline: true)
+                // Versions
+                .AddField("Discord.Net",  $"`v{discordNetVersion}`",  inline: true)
+                .AddField(".NET Runtime", $"`v{dotnetVersion}`",      inline: true)
+                .AddField("Lavalink",     lavalinkConnected ? "`Connected ✅`" : "`Disconnected ❌`", inline: true)
+                // Voice
+                .AddField("Voice Connections", $"`{activeVoiceConnections}`", inline: true)
+                .AddField("Tracks Playing",    $"`{tracksInQueues}`",         inline: true)
+                .AddField("Volume Overrides",  $"`{_volumes.Count}`",         inline: true)
+                // Economy
+                .AddField("Daily Users",  $"`{totalDailyUsers}`",  inline: true)
+                .AddField("Points Given", $"`{totalPoints}`",       inline: true)
+                .AddField("Top Streak",   $"`{topStreak} days`",   inline: true)
                 .Build();
 
             await sent.ModifyAsync(m =>
