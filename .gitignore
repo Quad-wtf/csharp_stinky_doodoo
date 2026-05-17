@@ -5,6 +5,7 @@ daily.json
 
 # Lavalink
 Lavalink.jar
+plugins/
 
 # Build output
 bin/

@@ -75,10 +75,11 @@ class Program
     private readonly Dictionary<ulong, AfkEntry> _afkUsers = new();
 
     private static readonly string[] _commands = [
-    "!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip",
-    "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk",
-    "!daily", "!leaderboard", "!announcement", "!maintenance",
-    "!join", "!leave", "!bye", "!volume", "!play"
+        "!ping", "!ban", "!kick", "!help", "!8ball", "!coinflip",
+        "!urban", "!serverinfo", "!userinfo", "!avatar", "!afk",
+        "!daily", "!leaderboard", "!announcement", "!maintenance",
+        "!join", "!leave", "!bye", "!volume", "!play",
+        "!pause", "!resume", "!queue", "!next"
     ];
 
     private IAudioService? _audioService;
@@ -937,6 +938,24 @@ class Program
                 .WithCurrentTimestamp()
                 .Build();
 
+            if (player.State == PlayerState.Playing || player.State == PlayerState.Paused)
+            {
+                await player.Queue.AddAsync(new TrackQueueItem(track));
+
+                var queueEmbed = new EmbedBuilder()
+                    .WithTitle("Added to Queue")
+                    .WithColor(Color.Blue)
+                    .AddField("Track",    $"[{track.Title}]({track.Uri})", inline: true)
+                    .AddField("Duration", track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
+                    .AddField("Position", $"`#{player.Queue.Count}`", inline: true)
+                    .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Uri?.ToString() ?? "")}/hqdefault.jpg")
+                    .WithCurrentTimestamp()
+                    .Build();
+
+                await msg.Channel.SendMessageAsync(embed: queueEmbed);
+                return;
+            }
+
             await msg.Channel.SendMessageAsync(embed: nowEmbed);
         }
         // ── Voice: !pause ─────────────────────────────────────────────────────────────
@@ -977,6 +996,108 @@ class Program
 
             await player.ResumeAsync();
             await msg.Channel.SendMessageAsync("Resumed.");
+        }
+
+        // ── Voice: !queue ─────────────────────────────────────────────────────────────
+        else if (msg.Content == "!queue")
+        {
+            var player = await _audioService!.Players.GetPlayerAsync<QueuedLavalinkPlayer>(guildChannel.Guild.Id);
+            if (player == null)
+            {
+                await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
+                return;
+            }
+
+            if (player.CurrentTrack == null && player.Queue.Count == 0)
+            {
+                await msg.Channel.SendMessageAsync("The queue is empty.");
+                return;
+            }
+
+            var desc = "";
+
+            if (player.CurrentTrack != null)
+            {
+                var duration = player.CurrentTrack.IsLiveStream
+                    ? "`LIVE`"
+                    : $"`{player.CurrentTrack.Duration:mm\\:ss}`";
+                desc += $"▶️ **Now Playing**\n[{player.CurrentTrack.Title}]({player.CurrentTrack.Uri}) {duration}\n\n";
+            }
+
+            if (player.Queue.Count > 0)
+            {
+                desc += "**Up Next**\n";
+                var tracks = player.Queue.ToArray();
+                int shown = Math.Min(tracks.Length, 10);
+
+                for (int i = 0; i < shown; i++)
+                {
+                    var t = tracks[i].Track;
+                    if (t == null) continue;
+                    var duration = t.IsLiveStream ? "`LIVE`" : $"`{t.Duration:mm\\:ss}`";
+                    desc += $"`#{i + 1}` [{t.Title}]({t.Uri}) {duration}\n";
+                }
+
+                if (tracks.Length > 10)
+                    desc += $"\n*...and {tracks.Length - 10} more*";
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("Queue")
+                .WithColor(Color.Purple)
+                .WithDescription(desc)
+                .WithFooter($"{player.Queue.Count} track(s) in queue")
+                .WithCurrentTimestamp()
+                .Build();
+
+            await msg.Channel.SendMessageAsync(embed: embed);
+        }
+
+        // ── Voice: !next ──────────────────────────────────────────────────────────────
+        else if (msg.Content == "!next")
+        {
+            var player = await _audioService!.Players.GetPlayerAsync<QueuedLavalinkPlayer>(guildChannel.Guild.Id);
+            if (player == null)
+            {
+                await msg.Channel.SendMessageAsync("I'm not in a voice channel.");
+                return;
+            }
+
+            if (player.CurrentTrack == null)
+            {
+                await msg.Channel.SendMessageAsync("Nothing is playing right now.");
+                return;
+            }
+
+            if (player.Queue.Count == 0)
+            {
+                await msg.Channel.SendMessageAsync("Nothing in the queue to skip to.");
+                return;
+            }
+
+            await player.SkipAsync();
+
+            if (player.CurrentTrack != null)
+            {
+                var duration = player.CurrentTrack.IsLiveStream
+                    ? "`LIVE`"
+                    : $"`{player.CurrentTrack.Duration:mm\\:ss}`";
+
+                var embed = new EmbedBuilder()
+                    .WithTitle("Skipped — Now Playing")
+                    .WithColor(Color.Green)
+                    .AddField("Track",    $"[{player.CurrentTrack.Title}]({player.CurrentTrack.Uri})", inline: true)
+                    .AddField("Duration", duration, inline: true)
+                    .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(player.CurrentTrack.Uri?.ToString() ?? "")}/hqdefault.jpg")
+                    .WithCurrentTimestamp()
+                    .Build();
+
+                await msg.Channel.SendMessageAsync(embed: embed);
+            }
+            else
+            {
+                await msg.Channel.SendMessageAsync("Skipped. Queue is now empty.");
+            }
         }
     }
 
