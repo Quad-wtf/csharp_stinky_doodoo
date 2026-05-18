@@ -965,35 +965,34 @@ class Program
 
             await player.PlayAsync(track);
 
-            var nowEmbed = new EmbedBuilder()
-                .WithTitle("Now Playing")
-                .WithColor(Color.Green)
-                .AddField("Track",    $"[{track.Title}]({track.Uri})", inline: true)
-                .AddField("Duration", track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
-                .AddField("Volume",   $"`{(_volumes.TryGetValue(guildChannel.Guild.Id, out var vol) ? vol : 100)}%`", inline: true)
-                .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Uri?.ToString() ?? "")}/hqdefault.jpg")
-                .WithCurrentTimestamp()
-                .Build();
+            if (player.CurrentTrack == null)
+            {
+                await player.PlayAsync(track);
 
-            if (player.State == PlayerState.Playing || player.State == PlayerState.Paused)
+                var nowEmbed = new EmbedBuilder()
+                    .WithTitle("Now Playing")
+                    .WithColor(Color.Green)
+                    .AddField("Track", $"[{track.Title}]({track.Uri})", inline: true)
+                    .AddField("Duration",
+                        track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`",
+                        inline: true)
+                    .Build();
+
+                await msg.Channel.SendMessageAsync(embed: nowEmbed);
+            }
+            else
             {
                 await player.Queue.AddAsync(new TrackQueueItem(track));
 
                 var queueEmbed = new EmbedBuilder()
                     .WithTitle("Added to Queue")
                     .WithColor(Color.Blue)
-                    .AddField("Track",    $"[{track.Title}]({track.Uri})", inline: true)
-                    .AddField("Duration", track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
+                    .AddField("Track", $"[{track.Title}]({track.Uri})", inline: true)
                     .AddField("Position", $"`#{player.Queue.Count}`", inline: true)
-                    .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Uri?.ToString() ?? "")}/hqdefault.jpg")
-                    .WithCurrentTimestamp()
                     .Build();
 
                 await msg.Channel.SendMessageAsync(embed: queueEmbed);
-                return;
             }
-
-            await msg.Channel.SendMessageAsync(embed: nowEmbed);
         }
         // ── Voice: !pause ─────────────────────────────────────────────────────────────
         else if (msg.Content == "!pause")
