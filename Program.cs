@@ -956,43 +956,85 @@ class Program
             if (_volumes.TryGetValue(guildChannel.Guild.Id, out var savedVol))
                 await player.SetVolumeAsync(savedVol / 100f);
 
-            var track = await _audioService.Tracks.LoadTrackAsync(query, TrackSearchMode.None);
-            if (track == null)
+            // Load as a collection to support playlists
+            var tracks = await _audioService.Tracks.LoadTracksAsync(query, TrackSearchMode.None);
+
+            if (tracks == null || !tracks.Tracks.Any())
             {
-                await msg.Channel.SendMessageAsync($"Couldn't load that track. Double-check the link. {Emojis.I_DUNNO}");
+                await msg.Channel.SendMessageAsync($"Couldn't load that track or playlist. Double-check the link. {Emojis.I_DUNNO}");
                 return;
             }
 
-            await player.PlayAsync(track);
+            var trackList = tracks.Tracks.ToList();
 
-            if (player.CurrentTrack == null)
+            // If it's a playlist
+            if (trackList.Count > 1)
             {
-                await player.PlayAsync(track);
+                var firstTrack = trackList[0];
+                bool wasEmpty = player.CurrentTrack == null;
 
-                var nowEmbed = new EmbedBuilder()
-                    .WithTitle("Now Playing")
-                    .WithColor(Color.Green)
-                    .AddField("Track", $"[{track.Title}]({track.Uri})", inline: true)
-                    .AddField("Duration",
-                        track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`",
-                        inline: true)
+                // Play the first track if nothing is playing, queue the rest
+                if (wasEmpty)
+                {
+                    await player.PlayAsync(firstTrack);
+                    foreach (var t in trackList.Skip(1))
+                        await player.Queue.AddAsync(new TrackQueueItem(t));
+                }
+                else
+                {
+                    foreach (var t in trackList)
+                        await player.Queue.AddAsync(new TrackQueueItem(t));
+                }
+
+                var playlistName = tracks.Playlist?.Name ?? "Playlist";
+
+                var embed = new EmbedBuilder()
+                    .WithTitle(wasEmpty ? "Now Playing Playlist" : "Playlist Added to Queue")
+                    .WithColor(wasEmpty ? Color.Green : Color.Blue)
+                    .AddField("Playlist", $"**{playlistName}**", inline: true)
+                    .AddField("Tracks",   $"`{trackList.Count}`", inline: true)
+                    .AddField("First Track", $"[{firstTrack.Title}]({firstTrack.Uri})", inline: false)
+                    .WithCurrentTimestamp()
                     .Build();
 
-                await msg.Channel.SendMessageAsync(embed: nowEmbed);
+                await msg.Channel.SendMessageAsync(embed: embed);
+                return;
             }
-            else
+
+            // Single track
+            var track = trackList[0];
+
+            if (player.CurrentTrack != null)
             {
                 await player.Queue.AddAsync(new TrackQueueItem(track));
 
                 var queueEmbed = new EmbedBuilder()
                     .WithTitle("Added to Queue")
                     .WithColor(Color.Blue)
-                    .AddField("Track", $"[{track.Title}]({track.Uri})", inline: true)
+                    .AddField("Track",    $"[{track.Title}]({track.Uri})", inline: true)
+                    .AddField("Duration", track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
                     .AddField("Position", $"`#{player.Queue.Count}`", inline: true)
+                    .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Uri?.ToString() ?? "")}/hqdefault.jpg")
+                    .WithCurrentTimestamp()
                     .Build();
 
                 await msg.Channel.SendMessageAsync(embed: queueEmbed);
+                return;
             }
+
+            await player.PlayAsync(track);
+
+            var nowEmbed = new EmbedBuilder()
+                .WithTitle("Now Playing")
+                .WithColor(Color.Green)
+                .AddField("Track",    $"[{track.Title}]({track.Uri})", inline: true)
+                .AddField("Duration", track.IsLiveStream ? "`LIVE`" : $"`{track.Duration:mm\\:ss}`", inline: true)
+                .AddField("Volume",   $"`{(_volumes.TryGetValue(guildChannel.Guild.Id, out var vol) ? vol : 100)}%`", inline: true)
+                .WithThumbnailUrl($"https://img.youtube.com/vi/{ExtractYouTubeId(track.Uri?.ToString() ?? "")}/hqdefault.jpg")
+                .WithCurrentTimestamp()
+                .Build();
+
+            await msg.Channel.SendMessageAsync(embed: nowEmbed);
         }
         // ── Voice: !pause ─────────────────────────────────────────────────────────────
         else if (msg.Content == "!pause")
